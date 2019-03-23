@@ -127,8 +127,13 @@ func direntType(ent *stargz.TOCEntry) fuse.DirentType {
 		return fuse.DT_File
 	case "symlink":
 		return fuse.DT_Link
+	case "block":
+		return fuse.DT_Block
+	case "char":
+		return fuse.DT_Char
+	case "fifo":
+		return fuse.DT_FIFO
 	}
-	// TODO: socket, block, char, fifo as needed
 	return fuse.DT_Unknown
 }
 
@@ -147,6 +152,13 @@ var (
 	_ fspkg.HandleReader       = (*node)(nil)
 )
 
+// makedev packs a major and minor version how Linux expects.
+func makedev(major, minor uint32) uint32 {
+	return (minor & 0xff) |
+		(major & 0xfff << 8) |
+		(minor & ^uint32(0xff) << 12)
+}
+
 // Attr populates a with the attributes of n.
 // See https://godoc.org/bazil.org/fuse/fs#Node
 func (n *node) Attr(ctx context.Context, a *fuse.Attr) error {
@@ -159,6 +171,8 @@ func (n *node) Attr(ctx context.Context, a *fuse.Attr) error {
 	a.Mode = fi.Mode()
 	a.Uid = uint32(n.te.Uid)
 	a.Gid = uint32(n.te.Gid)
+	a.Rdev = makedev(uint32(n.te.DevMajor), uint32(n.te.DevMinor))
+	a.Nlink = 1 // TODO: get this from te once hardlinks are more supported
 	if debug {
 		log.Printf("attr of %s: %s", n.te.Name, *a)
 	}
